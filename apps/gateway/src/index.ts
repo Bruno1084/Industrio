@@ -1,13 +1,17 @@
 import { stat } from "node:fs/promises";
+import type http from "node:http";
 import { ConfigError, loadConfig, type Config } from "./config.js";
 import { PlantStateStore } from "./domain/plant-state.js";
 import { parseSnapshot } from "./domain/snapshot.js";
+import { createHttpServer } from "./http/server.js";
+import { SseBroadcaster } from "./http/sse.js";
 import { createLogger, type Logger } from "./logger.js";
 import { FileSnapshotSource } from "./sources/file-source.js";
 import type { SnapshotSource } from "./sources/snapshot-source.js";
 
 // Si el apagado ordenado se traba (por ejemplo, una conexion que no cierra), salimos igual.
 const SHUTDOWN_TIMEOUT_MS = 5000;
+const SSE_HEARTBEAT_MS = 15_000;
 
 function readConfigOrExit(): Config {
   try {
@@ -72,6 +76,24 @@ async function warnIfDataDirMissing(config: Config, logger: Logger): Promise<voi
   }
 }
 
+function listen(server: http.Server, host: string, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, host, () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+}
+
+function closeServer(server: http.Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+    // close() espera a que terminen las conexiones; las keep-alive ociosas se cierran ya.
+    server.closeIdleConnections();
+  });
+}
+
 async function main(): Promise<void> {
   const config = readConfigOrExit();
   const logger = createLogger(config.logLevel);
@@ -89,6 +111,25 @@ async function main(): Promise<void> {
     intervalMs: config.pollIntervalMs,
     logger,
   });
+
+  const sse = new SseBroadcaster({ heartbeatMs: SSE_HEARTBEAT_MS, logger });
+  const unsubscribeSse = store.subscribe((state) => sse.broadcast(state));
+  const server = createHttpServer({ state: store, sse, corsOrigin: config.corsOrigin, logger });
+
+  // Primero el puerto: si esta ocupado, no tiene sentido empezar a leer.
+  try {
+    await listen(server, config.host, config.port);
+  } catch (error) {
+    const code = error instanceof Error && "code" in error ? error.code : undefined;
+    const hint =
+      code === "EADDRINUSE"
+        ? "el puerto ya esta en uso; cerra el otro proceso o defini GATEWAY_PORT"
+        : "no se pudo abrir el puerto; revisa GATEWAY_HOST y GATEWAY_PORT";
+    logger.error(`No se pudo iniciar el servidor HTTP: ${hint}`, { host: config.host, port: config.port, error });
+    process.exit(1);
+  }
+  server.on("error", (error) => logger.error("Error del servidor HTTP", { error }));
+  logger.info("Servidor HTTP escuchando", { url: `http://${config.host}:${config.port}` });
 
   const disconnectSource = connectSource(source, store, logger);
   source.start();
@@ -116,9 +157,13 @@ async function main(): Promise<void> {
     // unref: este timer no debe ser lo que mantiene vivo al proceso.
     forceExit.unref();
 
+    // Orden: dejar de producir datos, despues cortar a los clientes y por ultimo cerrar el puerto.
     clearInterval(linkWatchdog);
     await source.stop();
     disconnectSource();
+    unsubscribeSse();
+    sse.closeAll();
+    await closeServer(server);
     logger.info("Gateway detenido", { partialReads: store.getPartialReadCount() });
     // Sin process.exit(0): el proceso termina solo cuando no quedan recursos abiertos.
     // Si algo queda colgado, salta el timeout de arriba y queda registrado.
