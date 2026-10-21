@@ -1,0 +1,10 @@
+# Dependencias
+node_modules/
+
+# Salidas del juego y partidas: no son código del proyecto
+script-output/
+*.zip
+
+# Configuración local
+.env
+.env.*
