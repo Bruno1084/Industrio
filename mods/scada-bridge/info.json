@@ -1,6 +1,6 @@
 {
   "name": "scada-bridge",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "title": "SCADA Bridge",
   "author": "Bruno",
   "description": "Exporta el estado de la fabrica para un sistema SCADA externo.",
