@@ -1,5 +1,10 @@
+import { stat } from "node:fs/promises";
 import { ConfigError, loadConfig, type Config } from "./config.js";
-import { createLogger } from "./logger.js";
+import { PlantStateStore } from "./domain/plant-state.js";
+import { parseSnapshot } from "./domain/snapshot.js";
+import { createLogger, type Logger } from "./logger.js";
+import { FileSnapshotSource } from "./sources/file-source.js";
+import type { SnapshotSource } from "./sources/snapshot-source.js";
 
 // Si el apagado ordenado se traba (por ejemplo, una conexion que no cierra), salimos igual.
 const SHUTDOWN_TIMEOUT_MS = 5000;
@@ -16,18 +21,85 @@ function readConfigOrExit(): Config {
   }
 }
 
-function main(): void {
+/** Fuente -> validacion -> store. Devuelve la funcion para desconectar. */
+function connectSource(source: SnapshotSource, store: PlantStateStore, logger: Logger): () => void {
+  // Una falla inesperada suele repetirse en cada ciclo: se loguea cuando cambia, no cada segundo.
+  let lastErrorMessage: string | null = null;
+
+  return source.subscribe((result) => {
+    if (result.kind !== "error" && lastErrorMessage !== null) {
+      logger.info("La lectura de telemetria se recupero");
+      lastErrorMessage = null;
+    }
+
+    switch (result.kind) {
+      case "snapshot": {
+        const parsed = parseSnapshot(result.raw);
+        if (parsed.ok) store.acceptSnapshot(parsed.snapshot);
+        else store.rejectSnapshot(parsed.reason);
+        break;
+      }
+      case "missing":
+        store.reportMissing();
+        break;
+      case "partial":
+        store.reportPartialRead();
+        break;
+      case "error": {
+        const message = result.error instanceof Error ? result.error.message : String(result.error);
+        if (message !== lastErrorMessage) {
+          logger.error("Error inesperado leyendo la telemetria, se reintenta en el proximo ciclo", {
+            error: result.error,
+          });
+          lastErrorMessage = message;
+        }
+        // Sin datos nuevos el enlace igual tiene que poder pasar a stale.
+        store.refresh();
+        break;
+      }
+    }
+  });
+}
+
+/** Aviso temprano de una ruta mal configurada: si no, solo se veria no_data sin explicacion. */
+async function warnIfDataDirMissing(config: Config, logger: Logger): Promise<void> {
+  try {
+    await stat(config.factorioDataDir);
+  } catch {
+    logger.warn("La carpeta de datos de Factorio no existe; revisa FACTORIO_DATA_DIR", {
+      factorioDataDir: config.factorioDataDir,
+    });
+  }
+}
+
+async function main(): Promise<void> {
   const config = readConfigOrExit();
   const logger = createLogger(config.logLevel);
 
   logger.info("Gateway iniciando", { config });
+  await warnIfDataDirMissing(config, logger);
 
-  // Temporal: hasta que exista la fuente de snapshots (tarea 4) nada mantiene vivo el proceso.
-  const keepAlive = setInterval(() => {}, 60_000);
+  const store = new PlantStateStore({
+    staleAfterMs: config.staleAfterMs,
+    rateWindowSeconds: config.rateWindowSeconds,
+    logger,
+  });
+  const source = new FileSnapshotSource({
+    filePath: config.telemetryFile,
+    intervalMs: config.pollIntervalMs,
+    logger,
+  });
+
+  const disconnectSource = connectSource(source, store, logger);
+  source.start();
+  logger.info("Leyendo telemetria", { file: config.telemetryFile, intervalMs: config.pollIntervalMs });
+
+  // El paso a stale depende del reloj, no de que llegue una lectura: se reevalua aunque la fuente se trabe.
+  const linkWatchdog = setInterval(() => store.refresh(), config.pollIntervalMs);
 
   let shuttingDown = false;
 
-  const shutdown = (signal: NodeJS.Signals): void => {
+  const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) {
       logger.warn("Segunda senal durante el apagado: salida forzada", { signal });
       process.exit(1);
@@ -44,13 +116,25 @@ function main(): void {
     // unref: este timer no debe ser lo que mantiene vivo al proceso.
     forceExit.unref();
 
-    clearInterval(keepAlive);
+    clearInterval(linkWatchdog);
+    await source.stop();
+    disconnectSource();
+    logger.info("Gateway detenido", { partialReads: store.getPartialReadCount() });
     // Sin process.exit(0): el proceso termina solo cuando no quedan recursos abiertos.
     // Si algo queda colgado, salta el timeout de arriba y queda registrado.
   };
 
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  const onSignal = (signal: NodeJS.Signals): void => {
+    shutdown(signal).catch((error: unknown) => {
+      logger.error("Error durante el apagado", { error });
+      process.exit(1);
+    });
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error("Error fatal al iniciar el gateway:", error);
+  process.exit(1);
+});
