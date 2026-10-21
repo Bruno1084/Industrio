@@ -1,0 +1,11 @@
+/* La paleta ISA-101 se define en la tarea 4; por ahora solo el reset mínimo. */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

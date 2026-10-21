@@ -1,0 +1,33 @@
+{
+  "name": "hmi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HMI web: pantalla de supervisión de la planta que consume el stream en vivo del gateway.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev -H localhost",
+    "build": "next build",
+    "start": "next start -H localhost",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"test/**/*.test.ts\""
+  },
+  "dependencies": {
+    "next": "16.4.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.2",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3"
+  }
+}
