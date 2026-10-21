@@ -21,11 +21,12 @@ Es un proyecto de portfolio orientado a roles de **IoT/IIoT Backend Developer**.
 |---|---|
 | 1. Mod exporta telemetría a JSON | Funcionando, verificado en partida real |
 | 2. Lector en consola (Node/TS) | Funcionando, verificado en partida real |
-| 3. Dashboard web (Next.js) | **Siguiente** |
-| 4. Servidor dedicado + RCON | Pendiente |
-| 5. Primer comando remoto | Pendiente |
-| 6. Historian y alarmas | Pendiente |
-| 7. OPC-UA, MQTT Sparkplug B, AWS IoT Core | Pendiente |
+| 3. Gateway de telemetría (HTTP + SSE) | Implementado, verificado con datos simulados; **falta verificar en partida real** |
+| 4. Dashboard web (Next.js) | **Siguiente** |
+| 5. Servidor dedicado + RCON | Pendiente |
+| 6. Primer comando remoto | Pendiente |
+| 7. Historian y alarmas | Pendiente |
+| 8. OPC-UA, MQTT Sparkplug B, AWS IoT Core | Pendiente |
 
 Versión de Factorio del autor: **2.0.77**. Usá la documentación de la API de esa versión: https://lua-api.factorio.com/2.0.77/
 
@@ -40,13 +41,23 @@ industrio/
 │       ├── info.json
 │       └── control.lua
 └── apps/
+    ├── gateway/             # gateway de telemetría (Node/TS): validación, estado, HTTP + SSE
+    │   ├── README.md        # configuración, API y contrato de salida
+    │   ├── src/
+    │   │   ├── index.ts     # arranque, conexión de piezas, apagado ordenado
+    │   │   ├── config.ts    # variables de entorno validadas con zod
+    │   │   ├── logger.ts
+    │   │   ├── domain/      # snapshot.ts (esquema del mod), rates.ts (puras), plant-state.ts (store)
+    │   │   ├── sources/     # SnapshotSource (interfaz) y FileSnapshotSource
+    │   │   └── http/        # server.ts (rutas, CORS) y sse.ts (clientes SSE)
+    │   └── test/            # node:test, un archivo *.test.ts por módulo
     └── scada-reader/        # lector de consola (Node/TS)
         ├── package.json
         ├── tsconfig.json
         └── src/index.ts
 ```
 
-Las aplicaciones nuevas van en `apps/<nombre>/` (por ejemplo `apps/hmi/` para el dashboard Next.js, `apps/gateway/` para el gateway de borde). Código compartido entre apps (por ejemplo, los tipos del contrato de datos) va en `packages/<nombre>/` cuando exista más de un consumidor; no antes.
+Las aplicaciones nuevas van en `apps/<nombre>/` (por ejemplo `apps/hmi/` para el dashboard Next.js). Código compartido entre apps (por ejemplo, los tipos del contrato de datos) va en `packages/<nombre>/` cuando exista más de un consumidor; no antes.
 
 ## Componentes
 
@@ -58,7 +69,23 @@ Las aplicaciones nuevas van en `apps/<nombre>/` (por ejemplo `apps/hmi/` para el
 - Superficie `nauvis`, fuerza `player`.
 - Los estados de entidad se traducen de `defines.entity_status` (número) a nombre legible con una tabla inversa construida al cargar.
 
+### `gateway` (Node/TypeScript)
+
+Servicio continuo; detalle completo en `apps/gateway/README.md`.
+
+- ESM, TypeScript estricto, ejecutado con `tsx`. Node 22+. Única dependencia de producción: `zod`. HTTP con `node:http`, sin framework.
+- Flujo: `SnapshotSource` → `parseSnapshot` (zod) → `PlantStateStore` → `SseBroadcaster` / endpoints.
+- `SnapshotSource` desacopla el transporte (decisión 6). Entrega JSON crudo o una falla clasificada (`missing`, `partial`, `error`); la validación es del dominio. Hoy la única implementación es `FileSnapshotSource` (polling, sin lecturas superpuestas).
+- Validación: acepta solo `schema_version: 1`; los campos desconocidos se ignoran. `production` se normaliza quitando el sufijo `_total`.
+- Estado del enlace: `no_data`, `incompatible`, `online`, `stale`. El primer snapshot tras arrancar queda en `stale` hasta ver avanzar el tick (no afirmar comunicación no confirmada). Ante `incompatible` y `no_data` se conserva el último estado válido.
+- Tasas: funciones puras en `rates.ts`, en ticks, generalizadas por nombre de ítem. El historial se vacía si el tick retrocede.
+- `PlantStateStore` notifica solo cuando cambia el tick o el estado del enlace. Reloj y logger inyectables para tests.
+- Endpoints: `GET /health`, `GET /api/state`, `GET /api/stream` (SSE con evento inicial, `id` incremental, heartbeat de 15 s). CORS con `CORS_ORIGIN`. Escucha en `127.0.0.1:4000` por defecto, sin autenticación.
+- Logs: se registran cambios (de estado, de motivo de error), no cada ciclo de lectura.
+
 ### `scada-reader` (Node/TypeScript)
+
+Lector de consola previo al gateway. Lee el archivo directamente y no valida `schema_version`. Fuera del alcance actual: no modificarlo hasta decidir si se elimina o pasa a ser cliente del gateway.
 
 - ESM (`"type": "module"`), TypeScript estricto, ejecutado con `tsx`.
 - Lee el archivo cada 1000 ms.
@@ -70,7 +97,12 @@ Las aplicaciones nuevas van en `apps/<nombre>/` (por ejemplo `apps/hmi/` para el
 
 ## Contrato de datos
 
-El JSON de `latest.json` es la interfaz entre el mod y todo lo demás. Forma actual:
+Hay dos contratos, y los clientes solo dependen del segundo:
+
+1. **Mod → gateway**: el JSON de `latest.json` (abajo). Hoy lo leen el gateway y, de forma directa, `scada-reader`.
+2. **Gateway → clientes**: el contrato de salida con `apiVersion` (hoy `1`), documentado en `apps/gateway/README.md` y definido en `apps/gateway/src/domain/plant-state.ts`. El dashboard y cualquier cliente nuevo consumen este, **nunca** `latest.json`.
+
+Forma actual de `latest.json`:
 
 ```ts
 interface Snapshot {
@@ -82,20 +114,30 @@ interface Snapshot {
 ```
 
 Reglas:
-- **Un cambio en el contrato requiere actualizar en el mismo cambio**: el mod, los tipos en TypeScript de cada consumidor y la sección "Contrato de datos" del README.
-- Los totales de producción son **acumulados**; las tasas se calculan en el consumidor, no en el mod.
-- `schema_version` (constante `SCHEMA_VERSION` en `control.lua`) se sube solo ante cambios incompatibles. Agregar campos nuevos no la cambia. Los consumidores rechazan versiones que no conocen.
+- **Un cambio en el contrato del mod requiere actualizar en el mismo cambio**: el mod, el esquema zod del gateway (`domain/snapshot.ts`) y la sección "Contrato de datos" del README.
+- Los totales de producción son **acumulados**; las tasas se calculan en el gateway, no en el mod.
+- `schema_version` (constante `SCHEMA_VERSION` en `control.lua`) se sube solo ante cambios incompatibles. Agregar campos nuevos no la cambia. El gateway rechaza versiones que no conoce (enlace `incompatible`).
+- Un cambio incompatible en el contrato de salida sube `apiVersion` y requiere actualizar `apps/gateway/README.md` y los clientes. Agregar campos no lo sube.
 
 ## Comandos
 
 ```bash
-# Lector
-cd apps/scada-reader
+# Gateway
+cd apps/gateway
 npm install
-npm start           # ejecutar
+npm start           # ejecutar (http://127.0.0.1:4000)
 npm run dev         # modo watch
 npm run typecheck   # tsc --noEmit — debe pasar sin errores antes de dar algo por terminado
+npm test            # tsx --test "test/**/*.test.ts" — debe pasar antes de dar algo por terminado
+
+# Lector de consola
+cd apps/scada-reader
+npm install
+npm start
+npm run typecheck
 ```
+
+El autor usa Windows con PowerShell: los scripts de `package.json` no deben usar sintaxis de variables de entorno de un shell concreto, y en la documentación se usa `$env:VAR="valor"; npm start` y `curl.exe` (no `curl`).
 
 El mod no tiene build: se instala copiando o enlazando `mods/scada-bridge/` dentro de `<datos de Factorio>/mods/`. Tras modificar `control.lua` hay que recargar la partida (o reiniciar el juego si cambió `info.json`).
 
@@ -113,6 +155,8 @@ El mod no tiene build: se instala copiando o enlazando `mods/scada-bridge/` dent
 - ESM con `module`/`moduleResolution` `NodeNext`; imports de Node con prefijo `node:`.
 - Tipos explícitos para el contrato de datos.
 - Manejo de errores explícito: distinguir fallas esperables (reintentar) de inesperadas (registrar y propagar).
+- Toda entrada externa (archivos, variables de entorno, en el futuro RCON/UDP) se valida con `zod` en tiempo de ejecución.
+- Tests con `node:test` + `node:assert/strict`, ejecutados con `tsx --test`, en `apps/<app>/test/*.test.ts`. La lógica de dominio va en funciones puras o clases con reloj y logger inyectables, para testearla sin timers ni archivos.
 
 ### Lua (mod)
 - Variables y funciones `local`. Nada en el ámbito global salvo lo que exige la API de Factorio.
@@ -128,15 +172,17 @@ El mod no tiene build: se instala copiando o enlazando `mods/scada-bridge/` dent
 3. **Separación supervisión / control local.** Como en una planta real, el SCADA escribe *setpoints* (por ejemplo, valores en combinadores constantes) y la lógica local la resuelven los circuitos del juego. El acceso directo a entidades queda reservado para comandos discretos (interruptores, habilitar/deshabilitar).
 4. **Todo comando se audita**: quién, qué, cuándo, resultado.
 5. **Interlocks antes que comandos peligrosos**: no implementar un comando que pueda dejar la planta inoperable (por ejemplo, cortar la energía de las bombas de agua de las calderas) sin una regla que lo bloquee.
-6. **Transporte por archivo es temporal.** Es suficiente para las etapas 1–3. Las alternativas previstas son `helpers.send_udp` (requiere lanzar el juego con `--enable-lua-udp`) para telemetría y RCON para comandos. El consumidor debe quedar desacoplado del transporte (una interfaz de "fuente de snapshots") para poder cambiarlo sin tocar el resto.
+6. **Transporte por archivo es temporal.** Es suficiente para las etapas 1–4 (hasta el dashboard). Las alternativas previstas son `helpers.send_udp` (requiere lanzar el juego con `--enable-lua-udp`) para telemetría y RCON para comandos. El consumidor debe quedar desacoplado del transporte (una interfaz de "fuente de snapshots") para poder cambiarlo sin tocar el resto. En el gateway esa interfaz es `SnapshotSource` (`apps/gateway/src/sources/`).
+7. **Los clientes consumen el contrato del gateway (`apiVersion`), nunca el JSON del mod.** Así el mod y el transporte pueden cambiar sin romper a los clientes.
 
 ## Cómo verificar un cambio
 
-1. `npm run typecheck` sin errores en cada app modificada.
+1. `npm run typecheck` sin errores en cada app modificada, y `npm test` en verde donde haya tests (gateway).
 2. Si se tocó el mod: recargar la partida, confirmar que `latest.json` se actualiza cada segundo y que el contenido coincide con lo que muestra el juego (panel de producción, tecla **P**).
-3. Si se tocó un consumidor: probarlo contra un `latest.json` de ejemplo (usando `FACTORIO_DATA_DIR` apuntando a una carpeta temporal) y, cuando sea posible, contra la partida real.
-4. Comprobar los casos de borde: archivo inexistente, juego pausado (debe pasar a SIN RESPUESTA), cambio de partida (historial reiniciado).
-5. Actualizar README y este archivo si cambió el estado, la estructura, el contrato o las decisiones.
+3. Si se tocó un consumidor: probarlo contra un `latest.json` de ejemplo (usando `FACTORIO_DATA_DIR` apuntando a una carpeta temporal) y, cuando sea posible, contra la partida real. Para el gateway: `curl.exe http://127.0.0.1:4000/api/state` y `curl.exe -N http://127.0.0.1:4000/api/stream`.
+4. Comprobar los casos de borde: archivo inexistente (`no_data`), juego pausado (`stale` en el gateway, SIN RESPUESTA en el lector), cambio de partida (historial reiniciado, tasas en `null`), `schema_version` desconocido (`incompatible`), Ctrl+C con un cliente SSE conectado (sale con código 0).
+5. Al probar procesos en segundo plano, confirmar que quedaron detenidos: en Windows, matar el proceso desde Git Bash puede dejar huérfano al `node.exe` real.
+6. Actualizar README (raíz y de la app) y este archivo si cambió el estado, la estructura, el contrato o las decisiones.
 
 ## Lo que no hay que hacer
 
