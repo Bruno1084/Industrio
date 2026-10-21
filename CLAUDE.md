@@ -21,7 +21,7 @@ Es un proyecto de portfolio orientado a roles de **IoT/IIoT Backend Developer**.
 |---|---|
 | 1. Mod exporta telemetría a JSON | Funcionando, verificado en partida real |
 | 2. Lector en consola (Node/TS) | Funcionando, verificado en partida real |
-| 3. Gateway de telemetría (HTTP + SSE) | Implementado, verificado con datos simulados; **falta verificar en partida real** |
+| 3. Gateway de telemetría (HTTP + SSE) | Funcionando, verificado en partida real |
 | 4. Dashboard web (Next.js) | **Siguiente** |
 | 5. Servidor dedicado + RCON | Pendiente |
 | 6. Primer comando remoto | Pendiente |

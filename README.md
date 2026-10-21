@@ -14,7 +14,7 @@ Industrio lee en tiempo real el estado de una partida de Factorio (máquinas, pr
 |---|---|---|
 | 1 | Mod de Factorio que exporta telemetría a un archivo JSON | ✅ Funcionando |
 | 2 | Lector externo en Node/TypeScript (consola) | ✅ Funcionando |
-| 3 | Gateway de telemetría: validación, estado del enlace, API HTTP y stream SSE | ✅ Implementado (verificado con datos simulados; falta verificar en partida real) |
+| 3 | Gateway de telemetría: validación, estado del enlace, API HTTP y stream SSE | ✅ Funcionando |
 | 4 | Dashboard web (Next.js) | ⏳ Siguiente |
 | 5 | Partida en servidor dedicado + canal de comandos (RCON) | Pendiente |
 | 6 | Primer control remoto (interruptor de energía, estaciones) | Pendiente |
