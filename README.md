@@ -121,6 +121,7 @@ FACTORIO_DATA_DIR="/ruta/a/Factorio" npm start
 
 ```json
 {
+  "schema_version": 1,
   "tick": 69840,
   "furnaces": {
     "total": 48,
@@ -135,6 +136,7 @@ FACTORIO_DATA_DIR="/ruta/a/Factorio" npm start
 
 | Campo | Tipo | Descripción |
 |---|---|---|
+| `schema_version` | entero | Versión del formato del snapshot. Hoy es `1`. Cambia solo ante cambios incompatibles; los consumidores rechazan versiones que no conocen. |
 | `tick` | entero | Reloj de la partida. 60 ticks = 1 segundo de juego. |
 | `furnaces.total` | entero | Cantidad de hornos del jugador en Nauvis. |
 | `furnaces.by_status` | objeto | Cantidad de hornos por estado (`defines.entity_status` del juego). Solo aparecen los estados presentes. |
@@ -165,7 +167,7 @@ industrio/
 
 - [x] Exportar telemetría básica de hornos y producción.
 - [x] Lector externo con tasas de producción y detección de enlace caído.
-- [ ] Agregar `schema_version` al contrato de datos.
+- [x] Agregar `schema_version` al contrato de datos.
 - [ ] Dashboard web en Next.js con datos en vivo.
 - [ ] Ampliar telemetría: red eléctrica, estaciones de tren, entidades registradas por nombre.
 - [ ] Ejecutar la partida en servidor dedicado (headless) con RCON habilitado.

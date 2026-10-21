@@ -1,10 +1,11 @@
--- SCADA Bridge v0.2.0
+-- SCADA Bridge v0.3.0
 -- Cada segundo escribe un archivo JSON con datos basicos de la fabrica.
 -- El archivo queda en: <carpeta de datos de Factorio>/script-output/scada-bridge/latest.json
 --
--- Cambio respecto a v0.1.0: en vez de agrupar estados en "other", se informa
--- la cantidad de hornos en cada estado real del juego (working, no_fuel, full_output, etc.).
+-- Cambio respecto a v0.2.0: el snapshot incluye "schema_version" para que los
+-- consumidores puedan rechazar un formato que no conocen en vez de malinterpretarlo.
 
+local SCHEMA_VERSION = 1      -- subir solo ante cambios incompatibles en la forma del snapshot
 local SURFACE = "nauvis"      -- el planeta inicial
 local FORCE = "player"        -- tu "equipo"
 local INTERVAL_TICKS = 60     -- el juego corre a 60 ticks por segundo -> 1 lectura por segundo
@@ -41,6 +42,7 @@ script.on_nth_tick(INTERVAL_TICKS, function(event)
   if not surface then return end
 
   local snapshot = {
+    schema_version = SCHEMA_VERSION,
     tick = event.tick,                  -- "reloj" del juego
     furnaces = read_furnaces(surface),
     production = read_production(surface),

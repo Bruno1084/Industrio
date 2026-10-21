@@ -74,6 +74,7 @@ El JSON de `latest.json` es la interfaz entre el mod y todo lo demás. Forma act
 
 ```ts
 interface Snapshot {
+  schema_version: 1;                              // sube solo ante cambios incompatibles
   tick: number;                                   // 60 ticks = 1 s de juego
   furnaces: { total: number; by_status: Record<string, number> };
   production: { iron_plate_total: number; copper_plate_total: number };
@@ -83,7 +84,7 @@ interface Snapshot {
 Reglas:
 - **Un cambio en el contrato requiere actualizar en el mismo cambio**: el mod, los tipos en TypeScript de cada consumidor y la sección "Contrato de datos" del README.
 - Los totales de producción son **acumulados**; las tasas se calculan en el consumidor, no en el mod.
-- Pendiente: agregar `schema_version` al snapshot antes de sumar consumidores nuevos.
+- `schema_version` (constante `SCHEMA_VERSION` en `control.lua`) se sube solo ante cambios incompatibles. Agregar campos nuevos no la cambia. Los consumidores rechazan versiones que no conocen.
 
 ## Comandos
 
