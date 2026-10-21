@@ -1,0 +1,17 @@
+{
+  "name": "scada-reader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lee la telemetria que exporta el mod SCADA Bridge de Factorio y la muestra en consola.",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
