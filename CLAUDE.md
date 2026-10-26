@@ -22,8 +22,8 @@ Es un proyecto de portfolio orientado a roles de **IoT/IIoT Backend Developer**.
 | 1. Mod exporta telemetría a JSON | Funcionando, verificado en partida real |
 | 2. Lector en consola (Node/TS) | Funcionando, verificado en partida real |
 | 3. Gateway de telemetría (HTTP + SSE) | Funcionando, verificado en partida real |
-| 4. Dashboard web (Next.js) | **Siguiente** |
-| 5. Servidor dedicado + RCON | Pendiente |
+| 4. HMI web (Next.js) | Funcionando, verificado con planta simulada; falta verificación en partida real |
+| 5. Servidor dedicado + RCON | **Siguiente** |
 | 6. Primer comando remoto | Pendiente |
 | 7. Historian y alarmas | Pendiente |
 | 8. OPC-UA, MQTT Sparkplug B, AWS IoT Core | Pendiente |
@@ -51,13 +51,21 @@ industrio/
     │   │   ├── sources/     # SnapshotSource (interfaz) y FileSnapshotSource
     │   │   └── http/        # server.ts (rutas, CORS) y sse.ts (clientes SSE)
     │   └── test/            # node:test, un archivo *.test.ts por módulo
+    ├── hmi/                 # HMI web (Next.js): vista general de planta en vivo
+    │   ├── README.md        # uso, configuración, estados de comunicación, diseño ISA-101
+    │   ├── src/
+    │   │   ├── app/         # layout, page (server component), globals.css (paleta)
+    │   │   ├── components/  # plant-overview ("use client") y paneles, con CSS Modules
+    │   │   ├── hooks/       # use-plant-state (useSyncExternalStore), use-now
+    │   │   └── lib/         # puro: contract, hmi-state, trend, trend-chart, furnaces, format, config, gateway-client
+    │   └── test/            # node:test, un archivo *.test.ts por módulo de lib/
     └── scada-reader/        # lector de consola (Node/TS)
         ├── package.json
         ├── tsconfig.json
         └── src/index.ts
 ```
 
-Las aplicaciones nuevas van en `apps/<nombre>/` (por ejemplo `apps/hmi/` para el dashboard Next.js). Código compartido entre apps (por ejemplo, los tipos del contrato de datos) va en `packages/<nombre>/` cuando exista más de un consumidor; no antes.
+Las aplicaciones nuevas van en `apps/<nombre>/` (como `apps/hmi/`). Código compartido entre apps (por ejemplo, los tipos del contrato de datos) va en `packages/<nombre>/` cuando exista más de un consumidor; no antes.
 
 ## Componentes
 
@@ -83,6 +91,20 @@ Servicio continuo; detalle completo en `apps/gateway/README.md`.
 - Endpoints: `GET /health`, `GET /api/state`, `GET /api/stream` (SSE con evento inicial, `id` incremental, heartbeat de 15 s). CORS con `CORS_ORIGIN`. Escucha en `127.0.0.1:4000` por defecto, sin autenticación.
 - Logs: se registran cambios (de estado, de motivo de error), no cada ciclo de lectura.
 
+### `hmi` (Next.js/TypeScript)
+
+HMI web; detalle completo en `apps/hmi/README.md`.
+
+- Next.js 16 (App Router), TypeScript estricto, CSS Modules. Dependencias de producción: `next`, `react`, `react-dom`, `zod`. TypeScript fijado en `~5.9` solo en esta app (`typescript-eslint` exige < 6.1).
+- Página estática con un único componente cliente. El navegador se conecta **directo** al stream SSE del gateway (`NEXT_PUBLIC_GATEWAY_URL`, por defecto `http://127.0.0.1:4000`, incrustada en el build). Sin rutas `app/api/*`, proxy, Server Actions ni middleware.
+- Flujo: `GatewayClient` (`EventSource` → `parseStateEvent` con zod) → `reduceHmi` (puro) → `usePlantState` (`useSyncExternalStore`, un cliente compartido por URL) → componentes.
+- `EventSource` reconecta solo; el cliente solo lo recrea (a los 5 s) si queda `CLOSED`. El hook cierra la conexión 1 s después del último suscriptor para tolerar Strict Mode y Fast Refresh con una sola conexión.
+- `deriveCommStatus` combina navegador↔gateway y gateway↔planta en un indicador; los valores solo se presentan como vigentes con "En línea".
+- Tendencia en memoria del navegador, ventana de 600 s de juego medida en ticks; se vacía si el tick retrocede.
+- Diseño ISA-101: colores solo como variables en `src/app/globals.css`, color reservado para lo anormal, siempre con texto y símbolo. Sin fuentes ni recursos de internet.
+- Dentro de `src/lib/` se usan imports relativos (no `@/`) para que los tests corran con `tsx` sin Next.
+- `dev`/`start` con `-H localhost`. Abrir en `http://localhost:3000`, que es el `CORS_ORIGIN` por defecto del gateway (en Windows, `127.0.0.1:3000` ni siquiera conecta: Next escucha en `::1`).
+
 ### `scada-reader` (Node/TypeScript)
 
 Lector de consola previo al gateway. Lee el archivo directamente y no valida `schema_version`. Fuera del alcance actual: no modificarlo hasta decidir si se elimina o pasa a ser cliente del gateway.
@@ -100,7 +122,7 @@ Lector de consola previo al gateway. Lee el archivo directamente y no valida `sc
 Hay dos contratos, y los clientes solo dependen del segundo:
 
 1. **Mod → gateway**: el JSON de `latest.json` (abajo). Hoy lo leen el gateway y, de forma directa, `scada-reader`.
-2. **Gateway → clientes**: el contrato de salida con `apiVersion` (hoy `1`), documentado en `apps/gateway/README.md` y definido en `apps/gateway/src/domain/plant-state.ts`. El dashboard y cualquier cliente nuevo consumen este, **nunca** `latest.json`.
+2. **Gateway → clientes**: el contrato de salida con `apiVersion` (hoy `1`), documentado en `apps/gateway/README.md` y definido en `apps/gateway/src/domain/plant-state.ts`. La HMI y cualquier cliente nuevo consumen este, **nunca** `latest.json`.
 
 Forma actual de `latest.json`:
 
@@ -129,6 +151,16 @@ npm start           # ejecutar (http://127.0.0.1:4000)
 npm run dev         # modo watch
 npm run typecheck   # tsc --noEmit — debe pasar sin errores antes de dar algo por terminado
 npm test            # tsx --test "test/**/*.test.ts" — debe pasar antes de dar algo por terminado
+
+# HMI (con el gateway corriendo; abrir http://localhost:3000)
+cd apps/hmi
+npm install
+npm run dev         # desarrollo
+npm run build       # build de producción — debe pasar antes de dar algo por terminado
+npm start           # sirve el build
+npm run typecheck   # debe pasar sin errores
+npm run lint        # ESLint — debe pasar sin errores
+npm test            # tsx --test "test/**/*.test.ts" — debe pasar
 
 # Lector de consola
 cd apps/scada-reader
@@ -172,17 +204,18 @@ El mod no tiene build: se instala copiando o enlazando `mods/scada-bridge/` dent
 3. **Separación supervisión / control local.** Como en una planta real, el SCADA escribe *setpoints* (por ejemplo, valores en combinadores constantes) y la lógica local la resuelven los circuitos del juego. El acceso directo a entidades queda reservado para comandos discretos (interruptores, habilitar/deshabilitar).
 4. **Todo comando se audita**: quién, qué, cuándo, resultado.
 5. **Interlocks antes que comandos peligrosos**: no implementar un comando que pueda dejar la planta inoperable (por ejemplo, cortar la energía de las bombas de agua de las calderas) sin una regla que lo bloquee.
-6. **Transporte por archivo es temporal.** Es suficiente para las etapas 1–4 (hasta el dashboard). Las alternativas previstas son `helpers.send_udp` (requiere lanzar el juego con `--enable-lua-udp`) para telemetría y RCON para comandos. El consumidor debe quedar desacoplado del transporte (una interfaz de "fuente de snapshots") para poder cambiarlo sin tocar el resto. En el gateway esa interfaz es `SnapshotSource` (`apps/gateway/src/sources/`).
+6. **Transporte por archivo es temporal.** Es suficiente para las etapas 1–4 (hasta la HMI). Las alternativas previstas son `helpers.send_udp` (requiere lanzar el juego con `--enable-lua-udp`) para telemetría y RCON para comandos. El consumidor debe quedar desacoplado del transporte (una interfaz de "fuente de snapshots") para poder cambiarlo sin tocar el resto. En el gateway esa interfaz es `SnapshotSource` (`apps/gateway/src/sources/`).
 7. **Los clientes consumen el contrato del gateway (`apiVersion`), nunca el JSON del mod.** Así el mod y el transporte pueden cambiar sin romper a los clientes.
 
 ## Cómo verificar un cambio
 
-1. `npm run typecheck` sin errores en cada app modificada, y `npm test` en verde donde haya tests (gateway).
+1. `npm run typecheck` sin errores en cada app modificada, y `npm test` en verde donde haya tests (gateway, hmi). En la HMI además `npm run lint` y `npm run build`.
 2. Si se tocó el mod: recargar la partida, confirmar que `latest.json` se actualiza cada segundo y que el contenido coincide con lo que muestra el juego (panel de producción, tecla **P**).
 3. Si se tocó un consumidor: probarlo contra un `latest.json` de ejemplo (usando `FACTORIO_DATA_DIR` apuntando a una carpeta temporal) y, cuando sea posible, contra la partida real. Para el gateway: `curl.exe http://127.0.0.1:4000/api/state` y `curl.exe -N http://127.0.0.1:4000/api/stream`.
 4. Comprobar los casos de borde: archivo inexistente (`no_data`), juego pausado (`stale` en el gateway, SIN RESPUESTA en el lector), cambio de partida (historial reiniciado, tasas en `null`), `schema_version` desconocido (`incompatible`), Ctrl+C con un cliente SSE conectado (sale con código 0).
-5. Al probar procesos en segundo plano, confirmar que quedaron detenidos: en Windows, matar el proceso desde Git Bash puede dejar huérfano al `node.exe` real.
-6. Actualizar README (raíz y de la app) y este archivo si cambió el estado, la estructura, el contrato o las decisiones.
+5. Si se tocó la HMI: con el gateway corriendo, abrir `http://localhost:3000` y recorrer los estados (en línea, juego pausado → "Planta sin respuesta", gateway detenido → "Sin conexión con el gateway" y reconexión sola al reiniciarlo, cambio de partida → tendencia reiniciada, `schema_version` desconocido → "Telemetría incompatible"). En la pestaña Network debe haber una sola conexión a `/api/stream`. Sin navegador disponible: simular la planta escribiendo un `latest.json` por segundo en una carpeta temporal (`FACTORIO_DATA_DIR`).
+6. Al probar procesos en segundo plano, confirmar que quedaron detenidos: en Windows, matar el proceso desde Git Bash puede dejar huérfano al `node.exe` real.
+7. Actualizar README (raíz y de la app) y este archivo si cambió el estado, la estructura, el contrato o las decisiones.
 
 ## Lo que no hay que hacer
 
