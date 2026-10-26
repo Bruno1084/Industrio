@@ -56,7 +56,7 @@ Todas las variables son opcionales. Se validan al arrancar; si alguna es inváli
 | `POLL_INTERVAL_MS` | `1000` | Frecuencia de lectura del archivo (100 a 60000). |
 | `STALE_AFTER_MS` | `5000` | Tiempo sin cambios de tick para marcar el enlace como `stale`. Debe ser mayor que `POLL_INTERVAL_MS`. |
 | `RATE_WINDOW_SECONDS` | `60` | Ventana de cálculo de tasas, en segundos **de juego** (1 a 3600). |
-| `CORS_ORIGIN` | `http://localhost:3000` | Origen web autorizado (donde corre el dashboard). Formato `esquema://host:puerto`, sin barra final. |
+| `CORS_ORIGIN` | `http://localhost:3000` | Origen web autorizado (donde corre la HMI, `apps/hmi`). Formato `esquema://host:puerto`, sin barra final. |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` o `error`. |
 
 En PowerShell:
