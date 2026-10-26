@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { LinkStatus } from "../src/lib/contract";
-import { deriveCommStatus, initialHmiState, reduceHmi, type HmiAction, type HmiState } from "../src/lib/hmi-state";
+import {
+  deriveCommStatus,
+  initialHmiState,
+  plantUnavailableMessage,
+  reduceHmi,
+  type HmiAction,
+  type HmiState,
+} from "../src/lib/hmi-state";
 import { emptyState, plantState } from "./helpers";
 
 function run(actions: HmiAction[], from: HmiState = initialHmiState): HmiState {
@@ -170,5 +177,25 @@ describe("deriveCommStatus", () => {
     // Ultimo estado online, pero el gateway se corto: no se puede afirmar que siga online.
     const state = run([received(600, "online"), { type: "error" }]);
     assert.equal(deriveCommStatus(state).valuesAreLive, false);
+  });
+});
+
+describe("plantUnavailableMessage", () => {
+  it("distingue el arranque de un corte", () => {
+    assert.match(plantUnavailableMessage(initialHmiState), /Esperando/);
+    const cut = run([{ type: "event-received", state: emptyState("no_data") }, { type: "error" }]);
+    assert.match(plantUnavailableMessage(cut), /Se perdió la conexión/);
+  });
+
+  it("explica cada estado del enlace sin planta", () => {
+    assert.match(plantUnavailableMessage(run([{ type: "event-invalid", reason: "x" }])), /versión de API/);
+    assert.match(
+      plantUnavailableMessage(run([{ type: "event-received", state: emptyState("no_data") }])),
+      /todavía no recibió telemetría/,
+    );
+    assert.match(
+      plantUnavailableMessage(run([{ type: "event-received", state: emptyState("incompatible") }])),
+      /formato que el gateway no soporta/,
+    );
   });
 });

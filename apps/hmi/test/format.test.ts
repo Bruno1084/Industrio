@@ -9,6 +9,7 @@ import {
   furnaceStatusLabel,
   isAbnormalFurnaceStatus,
   itemLabel,
+  itemUnit,
 } from "../src/lib/format";
 
 describe("formatNumber", () => {
@@ -109,5 +110,15 @@ describe("itemLabel", () => {
 
   it("item desconocido -> nombre del juego con espacios", () => {
     assert.equal(itemLabel("steel_plate"), "steel plate");
+  });
+});
+
+describe("itemUnit", () => {
+  it("usa la unidad conocida del item", () => {
+    assert.equal(itemUnit("iron_plate"), "placas");
+  });
+
+  it("sin unidad conocida usa unidades", () => {
+    assert.equal(itemUnit("steel_plate_x"), "unidades");
   });
 });

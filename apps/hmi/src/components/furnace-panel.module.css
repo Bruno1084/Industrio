@@ -1,0 +1,75 @@
+.total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.totalLabel,
+.unit {
+  color: var(--color-muted);
+}
+
+.totalValue {
+  font-size: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.message {
+  color: var(--color-muted);
+}
+
+/* Barra apilada: un tramo por estado, proporcional a la cantidad. */
+.bar {
+  display: flex;
+  gap: 2px;
+  height: 20px;
+  padding: 2px;
+  background: var(--color-track);
+  border-radius: var(--radius);
+}
+
+.segment {
+  flex-basis: 0;
+  min-width: 2px;
+  background: var(--color-process-light);
+}
+
+.abnormal {
+  background: var(--color-warning);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  color: var(--color-muted);
+  text-align: left;
+}
+
+.table th,
+.table td {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.table th.number {
+  text-align: right;
+}
+
+/* Ámbar como fondo, no como color de texto: el ámbar sobre gris no se lee bien. */
+.abnormalStatus {
+  padding: 0 6px;
+  background: var(--color-warning);
+  color: var(--color-on-warning);
+  border-radius: var(--radius);
+}

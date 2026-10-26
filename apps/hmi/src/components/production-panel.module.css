@@ -1,0 +1,52 @@
+.message {
+  color: var(--color-muted);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.itemTitle {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+
+.values dt {
+  font-size: var(--font-size-small);
+  color: var(--color-muted);
+}
+
+.values dd {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.value {
+  font-size: 1.375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  /* Ancho fijo: los números quedan alineados aunque cambie la unidad. */
+  min-width: 7.5em;
+  font-size: var(--font-size-small);
+  color: var(--color-muted);
+}

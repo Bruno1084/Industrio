@@ -100,3 +100,23 @@ export function deriveCommStatus(state: HmiState): CommStatus {
       return { label: "Conectando con el gateway…", severity: "info", valuesAreLive: false };
   }
 }
+
+/** Explicacion para el operador cuando no hay ningun valor de planta que mostrar. */
+export function plantUnavailableMessage(state: HmiState): string {
+  if (state.gateway === "connecting") {
+    return state.hadDataBefore
+      ? "Se perdió la conexión con el gateway antes de recibir datos de la planta."
+      : "Esperando el primer dato del gateway.";
+  }
+  if (state.gateway === "incompatible") return "El gateway envía una versión de API que esta HMI no interpreta.";
+  switch (state.lastState?.link.status) {
+    case "incompatible":
+      return "La telemetría de la planta tiene un formato que el gateway no soporta.";
+    case "no_data":
+    case undefined:
+      return "El gateway todavía no recibió telemetría de la planta.";
+    case "online":
+    case "stale":
+      return "El gateway todavía no tiene un estado válido de la planta.";
+  }
+}

@@ -1,0 +1,29 @@
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* Dos columnas en pantallas anchas; en angostas los paneles se apilan. */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: var(--gap);
+  align-items: start;
+}
+
+.configError {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--color-panel);
+  border: 2px solid var(--color-critical);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+
+.configErrorTitle {
+  font-size: 1rem;
+  color: var(--color-critical);
+}

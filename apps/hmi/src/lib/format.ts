@@ -100,3 +100,14 @@ const ITEM_LABELS: Readonly<Record<string, string>> = {
 export function itemLabel(item: string): string {
   return Object.hasOwn(ITEM_LABELS, item) ? ITEM_LABELS[item] : item.replaceAll("_", " ");
 }
+
+// Unidad de conteo de cada item: "placas" en el total, "placas/min" en la tasa.
+const ITEM_UNITS: Readonly<Record<string, string>> = {
+  iron_plate: "placas",
+  copper_plate: "placas",
+};
+
+/** Unidad de conteo del item; sin traduccion, "unidades". */
+export function itemUnit(item: string): string {
+  return Object.hasOwn(ITEM_UNITS, item) ? ITEM_UNITS[item] : "unidades";
+}
