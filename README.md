@@ -29,7 +29,7 @@ Industrio lee en tiempo real el estado de una partida de Factorio (máquinas, pr
 
 ```
 ┌──────────────────────────┐   escribe cada 1 s   ┌─────────────────────────────┐
-│  Factorio 2.0            │ ───────────────────▶ │ script-output/scada-bridge/ │
+│  Factorio 2.1            │ ───────────────────▶ │ script-output/scada-bridge/ │
 │  + mod "scada-bridge"    │                      │ latest.json                 │
 └──────────────────────────┘                      └──────────────┬──────────────┘
                                                                  │ lee cada 1 s
@@ -94,7 +94,7 @@ Lee el archivo cada segundo y muestra en consola:
 
 ## Requisitos
 
-- **Factorio 2.0** (desarrollado y probado en 2.0.77).
+- **Factorio 2.1** (desarrollado en 2.0.77, actualizado a 2.1.23). El mod declara `factorio_version` 2.1, así que no carga en 2.0.
 - **Node.js 22** o superior.
 - Una partida dedicada al proyecto (los mods desactivan logros). Se recomienda mapa sin enemigos o en modo pacífico.
 

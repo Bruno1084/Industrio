@@ -28,7 +28,7 @@ Es un proyecto de portfolio orientado a roles de **IoT/IIoT Backend Developer**.
 | 7. Historian y alarmas | Pendiente |
 | 8. OPC-UA, MQTT Sparkplug B, AWS IoT Core | Pendiente |
 
-Versión de Factorio del autor: **2.0.77**. Usá la documentación de la API de esa versión: https://lua-api.factorio.com/2.0.77/
+Versión de Factorio del autor: **2.1.23**. Usá la documentación de la API de esa versión: https://lua-api.factorio.com/2.1.23/
 
 ## Estructura del repositorio
 
@@ -193,9 +193,9 @@ El mod no tiene build: se instala copiando o enlazando `mods/scada-bridge/` dent
 
 ## Referencias
 
-- API de Factorio 2.0.77: https://lua-api.factorio.com/2.0.77/
-- `LuaHelpers` (`write_file`, `table_to_json`, `send_udp`): https://lua-api.factorio.com/2.0.77/classes/LuaHelpers.html
-- `LuaFlowStatistics` (estadísticas de producción): https://lua-api.factorio.com/2.0.77/classes/LuaFlowStatistics.html
-- `LuaEntity` (estado, `power_switch_state`, `trains_limit`, `active`): https://lua-api.factorio.com/2.0.77/classes/LuaEntity.html
-- `LuaSchedule` (itinerarios de trenes): https://lua-api.factorio.com/2.0.77/classes/LuaSchedule.html
+- API de Factorio 2.1.23: https://lua-api.factorio.com/2.1.23/
+- `LuaHelpers` (`write_file`, `table_to_json`, `send_udp`): https://lua-api.factorio.com/2.1.23/classes/LuaHelpers.html
+- `LuaFlowStatistics` (estadísticas de producción): https://lua-api.factorio.com/2.1.23/classes/LuaFlowStatistics.html
+- `LuaEntity` (estado, `power_switch_state`, `trains_limit`, `active`): https://lua-api.factorio.com/2.1.23/classes/LuaEntity.html
+- `LuaSchedule` (itinerarios de trenes): https://lua-api.factorio.com/2.1.23/classes/LuaSchedule.html
 - Mods similares existentes (solo lectura, Prometheus/Grafana): graftorio3, statfactory. Industrio se diferencia por el control, las alarmas y los protocolos industriales.
