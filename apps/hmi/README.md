@@ -127,6 +127,7 @@ La antigüedad ("hace N s") se calcula con el reloj del navegador a partir de `l
 - Ventana fija de 10 min **de juego** (medida en ticks, como el gateway): el eje X termina en el último dato, así que la línea crece desde la derecha.
 - Si el tick retrocede (se cargó otra partida), la tendencia se reinicia.
 - Un valor `null` (el gateway todavía no puede calcular la tasa) corta la línea: no se dibuja como 0.
+- El eje Y se ajusta a los valores de la ventana, con un alto mínimo del 10 % de su magnitud: una tasa estable se ve plana aunque varíe en los decimales, en vez de amplificar ese ruido a todo el alto del gráfico. Las etiquetas muestran los límites del eje.
 - Vive **solo en memoria del navegador**: se pierde al recargar la página. El historial persistente es trabajo del historian (etapa 7).
 
 ---

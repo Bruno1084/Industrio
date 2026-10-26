@@ -12,7 +12,14 @@ export interface TrendChartModel {
   /** Minimo y maximo reales de la serie dentro de la ventana. */
   min: number;
   max: number;
+  /** Limites del eje Y dibujado (contienen a min y max). */
+  axisMin: number;
+  axisMax: number;
 }
+
+// Alto minimo del eje Y, relativo a la magnitud de la serie. Sin esto, el ruido de
+// redondeo de una tasa estable (59,9999 contra 60) se estira a todo el alto del grafico.
+const MIN_RELATIVE_SPAN = 0.1;
 
 /**
  * Geometria de la tendencia de un item, independiente del tamaño del grafico.
@@ -33,10 +40,10 @@ export function buildTrendChart(
 
   const min = Math.min(...values);
   const max = Math.max(...values);
-  // Serie plana: se abre el rango para que la linea quede centrada y no pegada a un borde.
-  const pad = max === min ? Math.abs(max) * 0.1 || 1 : 0;
-  const low = min - pad;
-  const span = max + pad - low;
+  // Una serie casi plana se dibuja centrada en un rango minimo, no estirada.
+  const minSpan = Math.max(Math.abs(min), Math.abs(max)) * MIN_RELATIVE_SPAN || 1;
+  const span = Math.max(max - min, minSpan);
+  const low = (min + max) / 2 - span / 2;
 
   const windowTicks = windowSeconds * TICKS_PER_SECOND;
   const startTick = last.tick - windowTicks;
@@ -53,5 +60,5 @@ export function buildTrendChart(
   }
   if (current.length > 0) segments.push(current);
 
-  return { segments, min, max };
+  return { segments, min, max, axisMin: low, axisMax: low + span };
 }

@@ -27,10 +27,9 @@ export function TrendChart({ points, item, label, unit, windowSeconds }: TrendCh
 
   return (
     <figure className={styles.chart}>
-      {/* Serie plana: una sola etiqueta, a la altura de la línea (centrada). */}
-      <div className={chart.min === chart.max ? `${styles.axis} ${styles.flat}` : styles.axis} aria-hidden="true">
-        <span>{formatRate(chart.max)}</span>
-        {chart.min !== chart.max && <span>{formatRate(chart.min)}</span>}
+      <div className={styles.axis} aria-hidden="true">
+        <span>{formatRate(chart.axisMax)}</span>
+        <span>{formatRate(chart.axisMin)}</span>
       </div>
       <svg
         className={styles.svg}

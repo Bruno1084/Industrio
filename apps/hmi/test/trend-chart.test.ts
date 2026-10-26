@@ -25,6 +25,8 @@ describe("buildTrendChart", () => {
       ],
       min: 10,
       max: 20,
+      axisMin: 10,
+      axisMax: 20,
     });
   });
 
@@ -53,6 +55,14 @@ describe("buildTrendChart", () => {
     );
     assert.equal(chart?.min, 120);
     assert.equal(chart?.max, 120);
+  });
+
+  it("el ruido de redondeo de una tasa estable no se estira a todo el alto", () => {
+    const chart = buildTrendChart([point(60, 59.9999), point(120, 60), point(180, 59.9999)], "iron_plate", WINDOW_SECONDS);
+    for (const p of chart?.segments[0] ?? []) assert.ok(Math.abs(p.y - 0.5) < 0.01, `y=${p.y}`);
+    // Eje de 10 % de la magnitud, centrado en la serie.
+    assert.ok(Math.abs((chart?.axisMax ?? 0) - 63) < 0.01);
+    assert.ok(Math.abs((chart?.axisMin ?? 0) - 57) < 0.01);
   });
 
   it("una serie plana en cero tambien queda centrada", () => {
