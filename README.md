@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/Industrio-banner.png" alt="Industrio — SCADA · Telemetría · Control" width="720">
+</p>
+
 # Industrio
 
 **Un sistema SCADA de práctica que usa una fábrica de Factorio como planta industrial simulada.**
