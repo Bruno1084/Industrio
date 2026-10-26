@@ -1,0 +1,64 @@
+import { TICKS_PER_SECOND, type TrendPoint } from "./trend";
+
+/** Punto normalizado: `x` 0..1 de izquierda a derecha, `y` 0..1 de abajo hacia arriba. */
+export interface ChartPoint {
+  x: number;
+  y: number;
+}
+
+export interface TrendChartModel {
+  /** Tramos continuos: un `null` (o un item ausente) corta la linea en vez de dibujarse como 0. */
+  segments: ChartPoint[][];
+  /** Minimo y maximo reales de la serie dentro de la ventana. */
+  min: number;
+  max: number;
+  /** Limites del eje Y dibujado (contienen a min y max). */
+  axisMin: number;
+  axisMax: number;
+}
+
+// Alto minimo del eje Y, relativo a la magnitud de la serie. Sin esto, el ruido de
+// redondeo de una tasa estable (59,9999 contra 60) se estira a todo el alto del grafico.
+const MIN_RELATIVE_SPAN = 0.1;
+
+/**
+ * Geometria de la tendencia de un item, independiente del tamaño del grafico.
+ * El eje X es la ventana fija de juego que termina en el ultimo punto, asi la
+ * linea crece desde la derecha. Devuelve `null` con menos de dos valores.
+ */
+export function buildTrendChart(
+  points: readonly TrendPoint[],
+  item: string,
+  windowSeconds: number,
+): TrendChartModel | null {
+  const last = points.at(-1);
+  if (!last) return null;
+
+  const samples = points.map((p) => ({ tick: p.tick, value: p.values[item] ?? null }));
+  const values = samples.flatMap((s) => (s.value === null ? [] : [s.value]));
+  if (values.length < 2) return null;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  // Una serie casi plana se dibuja centrada en un rango minimo, no estirada.
+  const minSpan = Math.max(Math.abs(min), Math.abs(max)) * MIN_RELATIVE_SPAN || 1;
+  const span = Math.max(max - min, minSpan);
+  const low = (min + max) / 2 - span / 2;
+
+  const windowTicks = windowSeconds * TICKS_PER_SECOND;
+  const startTick = last.tick - windowTicks;
+
+  const segments: ChartPoint[][] = [];
+  let current: ChartPoint[] = [];
+  for (const sample of samples) {
+    if (sample.value === null) {
+      if (current.length > 0) segments.push(current);
+      current = [];
+      continue;
+    }
+    current.push({ x: (sample.tick - startTick) / windowTicks, y: (sample.value - low) / span });
+  }
+  if (current.length > 0) segments.push(current);
+
+  return { segments, min, max, axisMin: low, axisMax: low + span };
+}

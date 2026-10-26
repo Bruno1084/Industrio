@@ -1,9 +1,10 @@
--- SCADA Bridge v0.3.0
+-- SCADA Bridge v0.3.1
 -- Cada segundo escribe un archivo JSON con datos basicos de la fabrica.
 -- El archivo queda en: <carpeta de datos de Factorio>/script-output/scada-bridge/latest.json
 --
--- Cambio respecto a v0.2.0: el snapshot incluye "schema_version" para que los
--- consumidores puedan rechazar un formato que no conocen en vez de malinterpretarlo.
+-- v0.3.0: el snapshot incluye "schema_version" para que los consumidores puedan
+-- rechazar un formato que no conocen en vez de malinterpretarlo.
+-- v0.3.1: compatible con Factorio 2.1 (sin cambios en la API usada ni en el snapshot).
 
 local SCHEMA_VERSION = 1      -- subir solo ante cambios incompatibles en la forma del snapshot
 local SURFACE = "nauvis"      -- el planeta inicial

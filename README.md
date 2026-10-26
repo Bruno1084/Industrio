@@ -15,8 +15,8 @@ Industrio lee en tiempo real el estado de una partida de Factorio (máquinas, pr
 | 1 | Mod de Factorio que exporta telemetría a un archivo JSON | ✅ Funcionando |
 | 2 | Lector externo en Node/TypeScript (consola) | ✅ Funcionando |
 | 3 | Gateway de telemetría: validación, estado del enlace, API HTTP y stream SSE | ✅ Funcionando |
-| 4 | Dashboard web (Next.js) | ⏳ Siguiente |
-| 5 | Partida en servidor dedicado + canal de comandos (RCON) | Pendiente |
+| 4 | HMI web (Next.js): vista general de planta en vivo | ✅ Funcionando |
+| 5 | Partida en servidor dedicado + canal de comandos (RCON) | ⏳ Siguiente |
 | 6 | Primer control remoto (interruptor de energía, estaciones) | Pendiente |
 | 7 | Historian (base de series temporales) y alarmas | Pendiente |
 | 8 | Protocolos industriales (OPC-UA, MQTT Sparkplug B) y AWS IoT Core | Pendiente |
@@ -29,7 +29,7 @@ Industrio lee en tiempo real el estado de una partida de Factorio (máquinas, pr
 
 ```
 ┌──────────────────────────┐   escribe cada 1 s   ┌─────────────────────────────┐
-│  Factorio 2.0            │ ───────────────────▶ │ script-output/scada-bridge/ │
+│  Factorio 2.1            │ ───────────────────▶ │ script-output/scada-bridge/ │
 │  + mod "scada-bridge"    │                      │ latest.json                 │
 └──────────────────────────┘                      └──────────────┬──────────────┘
                                                                  │ lee cada 1 s
@@ -42,10 +42,15 @@ Industrio lee en tiempo real el estado de una partida de Factorio (máquinas, pr
                      └────────────────┬─────────────────┘
                                       │ HTTP + SSE (127.0.0.1:4000)
                                       ▼
-                     clientes: dashboard (próximo), curl, ...
+                     ┌──────────────────────────────────┐
+                     │ hmi (Next.js, en el navegador)   │
+                     │ vista general: comunicación,     │
+                     │ hornos, producción y tendencia   │
+                     └──────────────────────────────────┘
+                       http://localhost:3000
 ```
 
-El gateway publica un contrato propio (`apiVersion`) y los clientes dependen de ese, no del JSON del mod. `scada-reader` sigue leyendo el archivo directamente; su futuro (eliminarlo o convertirlo en cliente del gateway) está pendiente de decidir.
+El gateway publica un contrato propio (`apiVersion`) y los clientes (la HMI, `curl`, ...) dependen de ese, no del JSON del mod. La HMI se conecta directo al stream SSE del gateway desde el navegador; Next.js solo sirve la página. `scada-reader` sigue leyendo el archivo directamente; su futuro (eliminarlo o convertirlo en cliente del gateway) está pendiente de decidir.
 
 ### Objetivo
 
@@ -83,6 +88,15 @@ Servicio continuo que lee la telemetría, la valida, calcula datos derivados y l
 
 Estados del enlace: `no_data`, `incompatible` (el archivo no pasa la validación), `online` y `stale` (el tick no avanza: juego pausado, cerrado o en el menú). Detalles, configuración y contrato de salida en [`apps/gateway/README.md`](apps/gateway/README.md).
 
+### `hmi` (Next.js / TypeScript)
+
+HMI (*Human-Machine Interface*) web: la pantalla de supervisión del operador. Una vista general que se actualiza sola con cada segundo de juego:
+- Estado de comunicación combinado (navegador ↔ gateway y gateway ↔ planta), tiempo de juego y antigüedad del último dato.
+- Hornos por estado (barra apilada y tabla) y producción (total, por minuto y tendencia de los últimos 10 min de juego).
+- Si el juego se pausa, el gateway se cae o el contrato no es compatible, los valores se atenúan como "Último valor conocido"; al volver el gateway se reconecta sola.
+
+Sigue los principios de HMI de alto rendimiento (ISA-101): gris cuando todo es normal, color solo para lo anormal. Detalles en [`apps/hmi/README.md`](apps/hmi/README.md).
+
 ### `scada-reader` (Node.js / TypeScript)
 
 Lee el archivo cada segundo y muestra en consola:
@@ -94,7 +108,7 @@ Lee el archivo cada segundo y muestra en consola:
 
 ## Requisitos
 
-- **Factorio 2.0** (desarrollado y probado en 2.0.77).
+- **Factorio 2.1** (desarrollado en 2.0.77, actualizado a 2.1.23). El mod declara `factorio_version` 2.1, así que no carga en 2.0.
 - **Node.js 22** o superior.
 - Una partida dedicada al proyecto (los mods desactivan logros). Se recomienda mapa sin enemigos o en modo pacífico.
 
@@ -134,7 +148,20 @@ curl.exe -N http://127.0.0.1:4000/api/stream # eventos en vivo
 
 Variables de configuración, endpoints y contrato de salida: [`apps/gateway/README.md`](apps/gateway/README.md).
 
-### 3. Ejecutar el lector de consola (opcional)
+### 3. Ejecutar la HMI
+
+Con el gateway corriendo, en otra terminal:
+
+```powershell
+cd apps/hmi
+npm install
+npm run dev        # desarrollo
+# o bien: npm run build; npm start   (build de producción)
+```
+
+Abrir **`http://localhost:3000`** (no `127.0.0.1:3000`: el gateway solo autoriza ese origen por CORS). Configuración y estados de comunicación: [`apps/hmi/README.md`](apps/hmi/README.md).
+
+### 4. Ejecutar el lector de consola (opcional)
 
 ```powershell
 cd apps/scada-reader
@@ -160,7 +187,7 @@ FACTORIO_DATA_DIR="/ruta/a/Factorio" npm start
 
 ## Contrato de datos (`latest.json`)
 
-Es la interfaz entre el mod y el gateway. Los clientes (dashboard y demás) **no** leen este archivo: consumen el contrato de salida del gateway (`apiVersion`), documentado en [`apps/gateway/README.md`](apps/gateway/README.md#contrato-de-salida-apiversion-1).
+Es la interfaz entre el mod y el gateway. Los clientes (la HMI y demás) **no** leen este archivo: consumen el contrato de salida del gateway (`apiVersion`), documentado en [`apps/gateway/README.md`](apps/gateway/README.md#contrato-de-salida-apiversion-1).
 
 ```json
 {
@@ -212,6 +239,14 @@ industrio/
     │   │   ├── sources/      # fuentes de snapshots (hoy: archivo)
     │   │   └── http/         # servidor y stream SSE
     │   └── test/
+    ├── hmi/                  # HMI web (Next.js): vista general de planta en vivo
+    │   ├── README.md
+    │   ├── src/
+    │   │   ├── app/          # layout, página y paleta ISA-101
+    │   │   ├── components/   # barra de comunicación y paneles
+    │   │   ├── hooks/        # conexión SSE como store de React
+    │   │   └── lib/          # contrato, estado, tendencia y formato (puro)
+    │   └── test/
     └── scada-reader/         # lector de consola en Node/TypeScript
         ├── package.json
         ├── tsconfig.json
@@ -226,7 +261,7 @@ industrio/
 - [x] Lector externo con tasas de producción y detección de enlace caído.
 - [x] Agregar `schema_version` al contrato de datos.
 - [x] Gateway de telemetría con validación, estado del enlace, API HTTP y stream SSE.
-- [ ] Dashboard web en Next.js con datos en vivo.
+- [x] HMI web en Next.js con datos en vivo (vista general, estados de comunicación, tendencia).
 - [ ] Decidir el futuro de `scada-reader`: eliminarlo o convertirlo en cliente de consola del gateway.
 - [ ] Ampliar telemetría: red eléctrica, estaciones de tren, entidades registradas por nombre.
 - [ ] Ejecutar la partida en servidor dedicado (headless) con RCON habilitado.
